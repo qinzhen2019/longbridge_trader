@@ -148,6 +148,20 @@ class OrderExecutor:
 
         return cancelled
 
+    def get_today_orders(self) -> list:
+        if self._cfg.paper_trading:
+            return []
+
+        if self._trade_ctx is None:
+            log.error("TradeContext not connected")
+            return []
+
+        try:
+            return list(self._trade_ctx.today_orders())
+        except Exception:
+            log.exception("Failed to fetch today orders")
+            return []
+
     def get_stock_positions(self) -> list:
         if self._cfg.paper_trading:
             return []

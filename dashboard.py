@@ -398,18 +398,116 @@ def scan_watchlist(quote_ctx: QuoteContext, cfg: TradingConfig) -> None:
         analyze_symbol(quote_ctx, top[0], cfg)
 
 
+def manual_trade_menu(executor: OrderExecutor) -> None:
+    print(f"\n{'=' * 60}")
+    print("  手动交易")
+    print(f"{'=' * 60}")
+    
+    symbol = input("  请输入股票代码 (如 TSLA.US / 700.HK): ").strip().upper()
+    if not symbol:
+        print("  代码不能为空")
+        return
+    if "." not in symbol:
+        symbol += ".US"
+
+    side_input = input("  买入(B) 还是 卖出(S)?: ").strip().upper()
+    if side_input not in ("B", "S"):
+        print("  无效输入，已取消")
+        return
+        
+    try:
+        qty_input = input("  请输入交易数量 (整数): ").strip()
+        quantity = int(qty_input)
+        if quantity <= 0:
+            print("  数量必须大于 0")
+            return
+            
+        price_input = input("  请输入限价价格 (留空为市价单): ").strip()
+        price = Decimal(price_input) if price_input else None
+    except ValueError:
+        print("  输入格式错误，已取消")
+        return
+
+    side_str = "买入" if side_input == "B" else "卖出"
+    price_str = f"限价 {price}" if price is not None else "市价"
+    print(f"\n  请确认: {side_str} {symbol} {quantity} 股 ({price_str})")
+    
+    confirm = input("  确认下单? (y/n): ").strip().lower()
+    if confirm == "y":
+        if side_input == "B":
+            order_id = executor.submit_buy(symbol, quantity, price)
+        else:
+            order_id = executor.submit_sell(symbol, quantity, price)
+            
+        if order_id:
+            print(f"  ✅ 订单提交成功! 订单号: {order_id}")
+        else:
+            print("  ❌ 订单提交失败，请检查日志")
+    else:
+        print("  已取消下单")
+
+
+def cancel_orders_menu(executor: OrderExecutor) -> None:
+    print(f"\n{'=' * 60}")
+    print("  撤销未成交订单")
+    print(f"{'=' * 60}")
+    
+    orders = executor.get_today_orders()
+    active_orders = [o for o in orders if o.status in ("NewStatus", "WaitToNew", "PartialFilled", "PendingReplace")]
+    
+    if not active_orders:
+        print("  当前没有待成交的订单")
+        return
+        
+    print(f"  {'序号':<4} {'代码':<10} {'方向':<6} {'类型':<6} {'状态':<15} {'价格':<10} {'数量(已成交/总)'}")
+    print(f"  {'─' * 70}")
+    
+    for i, o in enumerate(active_orders, 1):
+        side_str = "买入" if "Buy" in str(o.side) else "卖出"
+        print(f"  [{i:<2}] {o.symbol:<10} {side_str:<6} {str(o.order_type):<6} {str(o.status):<15} {str(o.price):<10} {o.executed_quantity}/{o.quantity}")
+        
+    print("\n  请选择:")
+    print("  0. 返回上一级")
+    print("  A. 一键撤销所有订单")
+    print("  输入序号撤销单笔订单")
+    
+    choice = input("\n  您的选择: ").strip().upper()
+    if choice == "0" or choice == "":
+        return
+    elif choice == "A":
+        print("  正在撤销所有待成交订单...")
+        cancelled = executor.cancel_all_pending_orders()
+        print(f"  ✅ 成功提交了 {cancelled} 笔撤单请求")
+    else:
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(active_orders):
+                target_order = active_orders[idx]
+                if executor._trade_ctx:
+                    executor._trade_ctx.cancel_order(target_order.order_id)
+                    print(f"  ✅ 已提交撤单请求: {target_order.order_id}")
+                else:
+                    print("  ❌ TradeContext未连接")
+            else:
+                print("  无效的序号")
+        except ValueError:
+            print("  无效输入")
+
+
 def main_menu() -> str:
-    print(f"\n{'╔' + '═' * 48 + '╗'}")
-    print(f"{'║'}{'长桥交易助手 - 交互式面板':^42}{'║'}")
-    print(f"{'╠' + '═' * 48 + '╣'}")
-    print(f"{'║'}  1. 分析股票标的                              {'║'}")
-    print(f"{'║'}  2. 查看账户持仓                              {'║'}")
-    print(f"{'║'}  3. 查看现金余额                              {'║'}")
-    print(f"{'║'}  4. 扫描美股关注清单 (智能推荐)               {'║'}")
-    print(f"{'║'}  5. 启动自动交易                              {'║'}")
-    print(f"{'║'}  6. 退出                                      {'║'}")
-    print(f"{'╚' + '═' * 48 + '╝'}")
-    return input("\n  请选择 [1-6]: ").strip()
+    print(f"\n{'╔' + '═' * 52 + '╗'}")
+    print(f"{'║'}{'长桥交易助手 - 交互式面板':^46}{'║'}")
+    print(f"{'╠' + '═' * 52 + '╣'}")
+    print(f"{'║'}  1. 分析股票标的                                  {'║'}")
+    print(f"{'║'}  2. 查看账户持仓                                  {'║'}")
+    print(f"{'║'}  3. 查看现金余额                                  {'║'}")
+    print(f"{'║'}  4. 扫描美股关注清单 (智能推荐)                   {'║'}")
+    print(f"{'║'}  5. 手动下单交易                                  {'║'}")
+    print(f"{'║'}  6. 查看并撤销订单                                {'║'}")
+    print(f"{'║'}  7. 启动自动交易引擎 (按 Ctrl+C 可停止并返回)     {'║'}")
+    print(f"{'║'}  8. 退出                                          {'║'}")
+    print(f"{'╚' + '═' * 52 + '╝'}")
+    return input("\n  请选择 [1-8]: ").strip()
 
 
 def main() -> None:
@@ -443,6 +541,16 @@ def main() -> None:
             scan_watchlist(quote_ctx, cfg)
 
         elif choice == "5":
+            executor = OrderExecutor(cfg)
+            executor._trade_ctx = trade_ctx
+            manual_trade_menu(executor)
+            
+        elif choice == "6":
+            executor = OrderExecutor(cfg)
+            executor._trade_ctx = trade_ctx
+            cancel_orders_menu(executor)
+
+        elif choice == "7":
             print("\n  即将启动自动交易引擎...")
             print(f"  模式: {'模拟盘' if cfg.paper_trading else '实盘'}")
             print(f"  标的: {cfg.watch_symbols}")
@@ -450,14 +558,22 @@ def main() -> None:
             if confirm == "y":
                 from main import TradingEngine
                 engine = TradingEngine(cfg)
-                engine.run()
+                # Override trade ctx to avoid reconnecting or double connections if possible, 
+                # but TradingEngine initializes its own. For simplicity, we just let it run.
+                print("  =======================================================")
+                print("  💡 提示: 自动交易引擎正在前台运行，想退回菜单请按 Ctrl + C")
+                print("  =======================================================\n")
+                try:
+                    engine.run()
+                except KeyboardInterrupt:
+                    print("\n  捕捉到退出信号，已停止自动交易，返回主面板。")
 
-        elif choice == "6":
+        elif choice == "8":
             print("\n  再见!")
             sys.exit(0)
 
         else:
-            print("  无效选择，请输入 1-6")
+            print("  无效选择，请输入 1-8")
 
 
 if __name__ == "__main__":

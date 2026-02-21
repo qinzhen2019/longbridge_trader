@@ -10,12 +10,18 @@ Longbridge Trader 是一款基于 [长桥 OpenAPI (Longport)](https://open.longp
   - **最大回撤保护 (Max Drawdown)**: 监控每日账户总资产回撤，一旦超出预设阈值（如3%），立即清空当日所有未成交订单并停止当天交易。
   - **时间冷却 (Cooldown)**: 交易频率控制，避免在一只票上短时间内频繁来回摩擦。
   - **仓位管理**: 限制总敞口 (Max Total Exposure)、单次开仓最大金额 (Max Position Value) 及最大持仓数量 (Max Positions)。
-- **实时与异步架构**: 基于 Python `asyncio`，并发请求和处理多支股票的历史 K 线数据，并通过 WebSocket 实时订阅最新的 Tick 级的行情报价以及账户订单变更推送 (Order Fill Events)。
+- **交互式操作面板 (Dashboard)**: 提供了一个完善的终端 UI，支持：
+  - 手动买卖下单（市价单/限价单）
+  - 查看并一键撤销账户的所有未成交订单
+  - 实时分析特定股票或扫描自选股列表
+  - 在面板内一键启动/停止自动交易引擎
+- **实时与异步架构**: 基于 Python `asyncio`，并发请求和处理多支股票历史数据，并通过 WebSocket 实时订阅最新的 Tick 级的行情报价以及账户订单变更推送。
 - **动态自选股监控**: 项目支持配置监控固定的股票池，也支持基于指定市场（如美股、港股）自动拉取长桥账户的自选股列表进行动态监控。
 
 ## 🏗 代码架构介绍
 
-- `main.py`: 项目的入口与核心运行引擎 (`TradingEngine`)。控制整个 Async 事件循环，并协调各模块的数据流动。
+- `dashboard.py`: 推荐的项目入口点，提供集成的终端用户界面。包含行情分析模块和交易引擎的启动。
+- `main.py`: 核心运行引擎 (`TradingEngine`)。控制整个 Async 事件循环，并协调各模块的数据流动。
 - `config.py`: 配置模块。利用 `dataclass` 从环境与 `.env` 中安全读取及解析各种交易参数。
 - `strategy.py`: 信号生成引擎 (`BollingerRsiStrategy`)。负责根据当前指标数据与持仓状态运算并产生发出 买入 (BUY)、卖出 (SELL) 或 观望 (HOLD) 信号。
 - `risk_control.py`: 风控模块。在开仓前校验剩余额度、风控状态，并在运行中实时监控是否触发止损 / 止盈及历史回撤。
@@ -52,11 +58,12 @@ cp .env.example .env
 
 ### 3. 一键启动
 
-你可以在 Unix 系统中使用自带的启动脚本：
+推荐使用交互式仪表盘启动：
 ```bash
-bash start_trading.sh
+python dashboard.py
 ```
-或者直接使用 Python 启动：
+
+或者跳过仪表盘，直接启动纯后台自动交易引擎：
 ```bash
 python main.py
 ```
