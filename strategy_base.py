@@ -6,9 +6,24 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from enum import Enum, auto
 
 from indicators import IndicatorSnapshot
-from strategy import Signal, SignalResult
+
+
+class Signal(Enum):
+    HOLD = auto()
+    BUY = auto()
+    SELL = auto()
+
+
+@dataclass
+class SignalResult:
+    signal: Signal
+    reason: str
+    price: float
+    indicators: IndicatorSnapshot
 
 
 class BaseStrategy(ABC):

@@ -10,8 +10,7 @@ import numpy as np
 from config import StrategyParams
 from indicators import IndicatorSnapshot
 from logger import get_logger
-from strategy import Signal, SignalResult
-from strategy_base import BaseStrategy
+from strategy_base import BaseStrategy, Signal, SignalResult
 from ml.feature_engineer import build_feature_vector
 from ml.rl_agent import RLAgentManager
 

@@ -6,29 +6,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum, auto
-
 from config import StrategyParams
 from indicators import IndicatorSnapshot
 from logger import get_logger
-from strategy_base import BaseStrategy
+from strategy_base import BaseStrategy, Signal, SignalResult
 
 log = get_logger("strategy")
-
-
-class Signal(Enum):
-    HOLD = auto()
-    BUY = auto()
-    SELL = auto()
-
-
-@dataclass
-class SignalResult:
-    signal: Signal
-    reason: str
-    price: float
-    indicators: IndicatorSnapshot
 
 
 class BollingerRsiStrategy(BaseStrategy):
