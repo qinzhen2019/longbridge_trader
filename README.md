@@ -5,6 +5,7 @@ Longbridge Trader 是一款基于 [长桥 OpenAPI (Longport)](https://open.longp
 ## ✨ 核心特性
 
 - **多因子交易策略**: 内置了基于 **Bollinger Bands (布林带)** 和 **RSI (相对强弱指数)** 的交易策略，同时结合 **EMA 趋势过滤**（Trend Filter），防止在明确的下跌趋势中盲目抄底。
+- **ML 智能策略引擎**: 支持 **XGBoost 监督学习**（预测涨跌概率过滤信号）和 **PPO/DQN 强化学习**（AI Agent 自主决策买卖），通过配置一键切换。详见 [ML 策略使用指南](ML_GUIDE.md)。
 - **完备的风控管理 (Risk Control)**:
   - **硬止损 & 止盈 (Stop Loss & Take Profit)**: 按百分比实时监控仓位，触达立即市价清仓。
   - **最大回撤保护 (Max Drawdown)**: 监控每日账户总资产回撤，一旦超出预设阈值（如3%），立即清空当日所有未成交订单并停止当天交易。
