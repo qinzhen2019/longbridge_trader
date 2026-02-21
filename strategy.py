@@ -12,6 +12,7 @@ from enum import Enum, auto
 from config import StrategyParams
 from indicators import IndicatorSnapshot
 from logger import get_logger
+from strategy_base import BaseStrategy
 
 log = get_logger("strategy")
 
@@ -30,7 +31,7 @@ class SignalResult:
     indicators: IndicatorSnapshot
 
 
-class BollingerRsiStrategy:
+class BollingerRsiStrategy(BaseStrategy):
     def __init__(self, params: StrategyParams):
         self._params = params
 

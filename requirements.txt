@@ -1,3 +1,6 @@
 longport>=3.0.0
 python-dotenv>=1.0.0
 numpy>=1.24.0
+
+# ML dependencies (install these if using xgboost or rl strategies)
+# pip install -r requirements-ml.txt
