@@ -22,6 +22,7 @@ from logger import get_logger, setup_logging
 from order_executor import OrderExecutor
 from risk_control import RiskController, OrderFill
 from strategy import BollingerRsiStrategy, Signal
+from strategy_base import BaseStrategy
 from watchlist import WatchlistManager, parse_market_filter
 
 log = get_logger("main")
@@ -45,7 +46,7 @@ class TradingEngine:
             max_positions=cfg.risk.max_positions,
         )
 
-        self._strategy = BollingerRsiStrategy(cfg.strategy)
+        self._strategy = self._create_strategy(cfg)
         self._executor = OrderExecutor(cfg)
 
         self._quote_ctx: QuoteContext | None = None
@@ -59,6 +60,32 @@ class TradingEngine:
         self._running = False
         self._last_watchlist_refresh: float = 0
         self._order_fill_queue: asyncio.Queue[OrderFill] | None = None
+
+    @staticmethod
+    def _create_strategy(cfg: TradingConfig) -> BaseStrategy:
+        """根据配置动态选择策略引擎。"""
+        strategy_type = cfg.ml.strategy_type.lower()
+
+        if strategy_type == "xgboost":
+            from ml.xgb_strategy import XGBoostStrategy
+            log.info("Using XGBoost ML strategy (buy_threshold=%.2f)", cfg.ml.xgb_buy_threshold)
+            return XGBoostStrategy(
+                params=cfg.strategy,
+                model_name=cfg.ml.model_name,
+                buy_threshold=cfg.ml.xgb_buy_threshold,
+                sell_threshold=cfg.ml.xgb_sell_threshold,
+            )
+        elif strategy_type == "rl":
+            from ml.rl_strategy import RLStrategy
+            log.info("Using RL strategy (algo=%s)", cfg.ml.rl_algo)
+            return RLStrategy(
+                params=cfg.strategy,
+                algo=cfg.ml.rl_algo,
+                model_name=cfg.ml.model_name,
+            )
+        else:
+            log.info("Using default BollingerRsi strategy")
+            return BollingerRsiStrategy(cfg.strategy)
 
     def _init_connections(self) -> None:
         lb_config = Config(

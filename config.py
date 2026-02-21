@@ -52,6 +52,15 @@ class WatchlistParams:
     market_filter: str
     refresh_interval: int
 
+
+@dataclass(frozen=True)
+class MLParams:
+    strategy_type: str  # "bollinger_rsi" | "xgboost" | "rl"
+    xgb_buy_threshold: float
+    xgb_sell_threshold: float
+    rl_algo: str  # "PPO" | "DQN" | "A2C"
+    model_name: str
+
 @dataclass(frozen=True)
 class TradingConfig:
     paper_trading: bool
@@ -62,6 +71,7 @@ class TradingConfig:
     strategy: StrategyParams
     risk: RiskParams
     watchlist: WatchlistParams
+    ml: MLParams
 
 
 def _env(key: str, default: str | None = None) -> str:
@@ -108,6 +118,14 @@ def load_config() -> TradingConfig:
         refresh_interval=int(_env("WATCHLIST_REFRESH_INTERVAL", "300")),
     )
 
+    ml = MLParams(
+        strategy_type=_env("STRATEGY_TYPE", "bollinger_rsi"),
+        xgb_buy_threshold=float(_env("XGB_BUY_THRESHOLD", "0.6")),
+        xgb_sell_threshold=float(_env("XGB_SELL_THRESHOLD", "0.4")),
+        rl_algo=_env("RL_ALGO", "PPO"),
+        model_name=_env("ML_MODEL_NAME", "xgb_model"),
+    )
+
     return TradingConfig(
         paper_trading=_env("PAPER_TRADING", "true").lower() in ("true", "1", "yes"),
         watch_symbols=symbols,
@@ -117,4 +135,5 @@ def load_config() -> TradingConfig:
         strategy=strategy,
         risk=risk,
         watchlist=watchlist,
+        ml=ml,
     )
