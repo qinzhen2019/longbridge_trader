@@ -1,6 +1,6 @@
 # Longbridge Trader 📈
 
-Longbridge Trader 是一款基于 [长桥 OpenAPI (Longport)](https://open.longbridgeapp.com/) 的自动化量化交易机器人。它专为具有特定交易策略（如布林带结合 RSI 的均值回归和趋势跟踪）的用户设计。通过异步架构 (Asyncio) 提供高效的数据拉取与处理，并具有非常严密的风险管理系统，支持实盘与模拟（Paper Trading）交易模式。
+Longbridge Trader 是一款基于 [长桥 OpenAPI (Longport)](https://open.longportapp.com/) 的自动化量化交易机器人。它专为具有特定交易策略（如布林带结合 RSI 的均值回归和趋势跟踪）的用户设计。通过异步架构 (Asyncio) 提供高效的数据拉取与处理，并具有非常严密的风险管理系统，支持实盘与模拟（Paper Trading）交易模式。
 
 ## ✨ 核心特性
 
