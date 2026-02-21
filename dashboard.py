@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sys
+import subprocess
+import platform
 from decimal import Decimal
 
 from longport.openapi import (
@@ -563,10 +565,26 @@ def main() -> None:
                 print("  =======================================================")
                 print("  💡 提示: 自动交易引擎正在前台运行，想退回菜单请按 Ctrl + C")
                 print("  =======================================================\n")
+                
+                caffeinate_proc = None
+                if platform.system() == "Darwin":
+                    print("  ⚡ 已启动 macOS 防休眠 (caffeinate)")
+                    # -i: prevent idle sleep, -s: prevent system sleep
+                    caffeinate_proc = subprocess.Popen(
+                        ["caffeinate", "-i", "-s"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+
                 try:
                     engine.run()
                 except KeyboardInterrupt:
                     print("\n  捕捉到退出信号，已停止自动交易，返回主面板。")
+                finally:
+                    if caffeinate_proc is not None:
+                        caffeinate_proc.terminate()
+                        caffeinate_proc.wait()
+                        print("  🛑 已关闭防休眠进程")
 
         elif choice == "8":
             print("\n  再见!")
