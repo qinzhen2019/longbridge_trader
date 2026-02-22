@@ -1,77 +1,167 @@
-# Longbridge Trader 📈
+# Longbridge Trader
 
-Longbridge Trader 是一款基于 [长桥 OpenAPI (Longport)](https://open.longportapp.com/) 的自动化量化交易机器人。它专为具有特定交易策略（如布林带结合 RSI 的均值回归和趋势跟踪）的用户设计。通过异步架构 (Asyncio) 提供高效的数据拉取与处理，并具有非常严密的风险管理系统，支持实盘与模拟（Paper Trading）交易模式。
+基于长桥 OpenAPI 的量化交易机器人，支持规则策略与机器学习策略。
 
-## ✨ 核心特性
+## 核心特性
 
-- **多因子交易策略**: 内置了基于 **Bollinger Bands (布林带)** 和 **RSI (相对强弱指数)** 的交易策略，同时结合 **EMA 趋势过滤**（Trend Filter），防止在明确的下跌趋势中盲目抄底。
-- **ML 智能策略引擎**: 支持 **XGBoost 监督学习**（预测涨跌概率过滤信号）和 **PPO/DQN 强化学习**（AI Agent 自主决策买卖），通过配置一键切换。详见 [ML 策略使用指南](ML_GUIDE.md)。
-- **完备的风控管理 (Risk Control)**:
-  - **硬止损 & 止盈 (Stop Loss & Take Profit)**: 按百分比实时监控仓位，触达立即市价清仓。
-  - **最大回撤保护 (Max Drawdown)**: 监控每日账户总资产回撤，一旦超出预设阈值（如3%），立即清空当日所有未成交订单并停止当天交易。
-  - **时间冷却 (Cooldown)**: 交易频率控制，避免在一只票上短时间内频繁来回摩擦。
-  - **仓位管理**: 限制总敞口 (Max Total Exposure)、单次开仓最大金额 (Max Position Value) 及最大持仓数量 (Max Positions)。
-- **交互式操作面板 (Dashboard)**: 提供了一个完善的终端 UI，支持：
-  - 手动买卖下单（市价单/限价单）
-  - 查看并一键撤销账户的所有未成交订单
-  - 实时分析特定股票或扫描自选股列表
-  - 在面板内一键启动/停止自动交易引擎
-- **实时与异步架构**: 基于 Python `asyncio`，并发请求和处理多支股票历史数据，并通过 WebSocket 实时订阅最新的 Tick 级的行情报价以及账户订单变更推送。
-- **动态自选股监控**: 项目支持配置监控固定的股票池，也支持基于指定市场（如美股、港股）自动拉取长桥账户的自选股列表进行动态监控。
+| 特性 | 说明 |
+|------|------|
+| **多策略引擎** | 布林带+RSI 规则策略 / XGBoost 监督学习 / PPO-DQN 强化学习，一键切换 |
+| **完备风控** | 止损止盈、最大回撤保护、仓位限制、交易冷却 |
+| **异步架构** | asyncio + WebSocket 实时行情，高效并发 |
+| **交互面板** | 终端 Dashboard，支持手动交易、策略管理、模型训练 |
+| **模拟盘支持** | Paper Trading 模式安全验证策略 |
 
-## 🏗 代码架构介绍
+## 架构
 
-- `dashboard.py`: 推荐的项目入口点，提供集成的终端用户界面。包含行情分析模块和交易引擎的启动。
-- `main.py`: 核心运行引擎 (`TradingEngine`)。控制整个 Async 事件循环，并协调各模块的数据流动。
-- `config.py`: 配置模块。利用 `dataclass` 从环境与 `.env` 中安全读取及解析各种交易参数。
-- `strategy.py`: 信号生成引擎 (`BollingerRsiStrategy`)。负责根据当前指标数据与持仓状态运算并产生发出 买入 (BUY)、卖出 (SELL) 或 观望 (HOLD) 信号。
-- `risk_control.py`: 风控模块。在开仓前校验剩余额度、风控状态，并在运行中实时监控是否触发止损 / 止盈及历史回撤。
-- `order_executor.py`: 执行器。封装了长桥官方的 `TradeContext`，负责底层订单真正地向交易所提交、取消操作，以及资产和持仓的同步。
-- `indicators.py` *(未展示详情)*: 负责依靠获取到的历史 K 线，计算 BB/RSI/EMA 等技术指标。
-
-## 🚀 快速开始
-
-### 1. 环境准备
-
-确保你已安装 Python 3.9 或更高版本。
-
-```bash
-# 克隆你自己的代码库
-git clone https://github.com/你的用户名/longbridge_trader.git
-cd longbridge_trader
-
-# 安装依赖
-pip install -r requirements.txt
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Dashboard (交互面板)                  │
+├─────────────────────────────────────────────────────────┤
+│                   TradingEngine (main.py)               │
+│         异步事件循环 + WebSocket 行情订阅                │
+├──────────────┬──────────────┬───────────────────────────┤
+│   Strategy   │ RiskControl  │      OrderExecutor        │
+│   策略引擎    │   风控模块    │        订单执行           │
+├──────────────┴──────────────┴───────────────────────────┤
+│                     ML 策略层 (可选)                     │
+│      XGBoost (监督学习)  │  PPO/DQN (强化学习)          │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### 2. 配置环境参数
+## 快速开始
 
-复制示例的配置文件来创建你自己的环境配置文件：
+### 1. 安装
+
+```bash
+git clone https://github.com/你的用户名/longbridge_trader.git
+cd longbridge_trader
+pip install -r requirements.txt
+
+# 如需使用 ML 策略
+pip install -r requirements-ml.txt
+```
+
+### 2. 配置
 
 ```bash
 cp .env.example .env
 ```
 
-打开 `.env` 文件，输入你的长桥（Longport）API 凭证，以及所需的交易参数。其中：
-* `LONGPORT_APP_KEY`, `LONGPORT_APP_SECRET`, `LONGPORT_ACCESS_TOKEN`: [在长桥开放平台申请](https://open.longbridgeapp.com/)。
-* `PAPER_TRADING`: 设为 `true` 则使用模拟交易，即仅打印包含 `[PAPER]` 的日志，不产生真实的买卖。设为 `false` 则为实盘。
-* `WATCH_SYMBOLS`: 你想要坚守监听的股票代码，如 `700.HK,TSLA.US`。
+编辑 `.env`，填入长桥 API 凭证：
 
-### 3. 一键启动
-
-推荐使用交互式仪表盘启动：
 ```bash
-python dashboard.py
+# 必填 - 在 https://open.longportapp.com 申请
+LONGPORT_APP_KEY=your_key
+LONGPORT_APP_SECRET=your_secret
+LONGPORT_ACCESS_TOKEN=your_token
+
+# 策略选择: bollinger_rsi | xgboost | rl
+STRATEGY_TYPE=bollinger_rsi
+
+# 模拟盘 (建议先测试)
+PAPER_TRADING=true
 ```
 
-或者跳过仪表盘，直接启动纯后台自动交易引擎：
+### 3. 运行
+
 ```bash
+# 交互面板 (推荐)
+python dashboard.py
+
+# 或直接启动交易引擎
 python main.py
 ```
 
-## ⚠️ 风险提示及免责声明
-本项目基于个人编程与量化学术研究目的开源和分享。
-**使用本项目连接实盘进行交易可能产生真实的财务损失！** 作者不对使用此代码造成的任何个人投资盈亏负责，请务必在完全阅读并理解项目策略且经过充分 **Paper Trading** 验证后再考虑投入真实资本。
+## 策略说明
 
-## 🤝 贡献与支持
-如果你发现了任何 Bug 或有提升策略的建议，非常欢迎提交 [Pull Request](https://github.com/qinzhen2019/longbridge_trader/pulls) 或提交 [Issue](https://github.com/qinzhen2019/longbridge_trader/issues)。
+### 规则策略 (默认)
+
+布林带 + RSI 均值回归策略：
+
+| 信号 | 条件 |
+|------|------|
+| **买入** | 价格触及布林下轨 + RSI 超卖 (<30) + 价格在 EMA 上方 |
+| **卖出** | 价格回到布林中轨 / RSI 超买 (>70) / 触及上轨 |
+
+### ML 策略
+
+详见 [ML_GUIDE.md](ML_GUIDE.md)
+
+| 策略 | 原理 | 适用场景 |
+|------|------|----------|
+| **XGBoost** | 预测未来 N 日涨跌概率 | 有足够历史数据，追求可解释性 |
+| **RL (PPO/DQN)** | Agent 自主学习买卖决策 | 复杂市场环境，追求自适应 |
+
+## 风控机制
+
+```
+┌─────────────────────────────────────────────┐
+│                  风控检查链                  │
+├─────────────────────────────────────────────┤
+│  1. 交易是否被暂停? (最大回撤触发)           │
+│  2. 是否在冷却期? (防止频繁交易)             │
+│  3. 是否已有持仓? (单标的不重复开仓)         │
+│  4. 持仓数量是否超限? (max_positions)        │
+│  5. 总敞口是否超限? (max_total_exposure)     │
+├─────────────────────────────────────────────┤
+│  实时监控: 止损 / 止盈 / 日内最大回撤        │
+└─────────────────────────────────────────────┘
+```
+
+关键参数 (`.env` 配置)：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `STOP_LOSS_PCT` | 1.5% | 单笔止损阈值 |
+| `TAKE_PROFIT_PCT` | 1.5% | 单笔止盈阈值 |
+| `MAX_DRAWDOWN_PCT` | 3.0% | 日内最大回撤，触发后停止交易 |
+| `MAX_POSITIONS` | 10 | 最大持仓数量 |
+| `MAX_POSITION_VALUE` | 1000 | 单笔最大金额 |
+
+## 文件结构
+
+```
+longbridge_trader/
+├── dashboard.py          # 交互面板入口
+├── main.py               # 交易引擎
+├── config.py             # 配置管理
+├── strategy.py           # 规则策略
+├── strategy_base.py      # 策略基类
+├── indicators.py         # 技术指标
+├── risk_control.py       # 风控模块
+├── order_executor.py     # 订单执行
+├── ml/                   # ML 策略模块
+│   ├── feature_engineer.py
+│   ├── xgb_strategy.py
+│   ├── rl_strategy.py
+│   ├── trading_env.py
+│   └── backtest.py
+└── models/               # 训练后的模型
+```
+
+## Dashboard 功能
+
+| 菜单 | 功能 |
+|------|------|
+| 1. 分析股票 | 查看技术指标、ML 特征向量、建议买卖点位 |
+| 2. 查看持仓 | 显示当前持仓明细 |
+| 3. 查看现金 | 账户余额、购买力 |
+| 4. 扫描关注清单 | 智能评分推荐买入标的 |
+| 5. 手动交易 | 市价/限价买卖 |
+| 6. 撤销订单 | 查看并撤销未成交订单 |
+| 7. 启动引擎 | 启动自动交易 |
+| 8. ML 管理 | 训练模型、查看状态、回测评估 |
+| 9. ML 预测 | 预测关注清单涨跌概率 |
+
+## ⚠️ 风险提示
+
+**本项目仅供学习研究，实盘交易可能导致资金损失。**
+
+- 使用前请充分理解策略逻辑
+- 建议先在模拟盘 (`PAPER_TRADING=true`) 验证
+- 作者不对任何投资损失负责
+
+## License
+
+MIT
