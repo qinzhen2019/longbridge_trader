@@ -76,6 +76,13 @@ def _format_price(val: float) -> str:
     return f"{val:,.2f}"
 
 
+def _normalize_symbols(raw: str) -> str:
+    """Auto-append .US to bare symbols: 'AAPL,TSLA' -> 'AAPL.US,TSLA.US'"""
+    parts = [s.strip().upper() for s in raw.split(",") if s.strip()]
+    fixed = [s if "." in s else f"{s}.US" for s in parts]
+    return ",".join(fixed)
+
+
 def _strategy_label(cfg: TradingConfig) -> str:
     """Return a human-friendly label for the active strategy."""
     st = cfg.ml.strategy_type.lower()
@@ -733,9 +740,11 @@ def ml_management_menu(cfg: TradingConfig) -> None:
         print(f"  3. 检测 ML 依赖库")
         print(f"  4. 训练 XGBoost 模型")
         print(f"  5. 训练 RL 模型")
+        print(f"  6. 回测评估 XGBoost 模型")
+        print(f"  7. 回测评估 RL 模型")
         print(f"  0. 返回主菜单")
 
-        choice = input("\n  请选择 [0-5]: ").strip()
+        choice = input("\n  请选择 [0-7]: ").strip()
 
         if choice == "1":
             _show_strategy_config(cfg)
@@ -747,6 +756,10 @@ def ml_management_menu(cfg: TradingConfig) -> None:
             _train_xgb_interactive(cfg)
         elif choice == "5":
             _train_rl_interactive(cfg)
+        elif choice == "6":
+            _backtest_interactive(cfg, "xgboost")
+        elif choice == "7":
+            _backtest_interactive(cfg, "rl")
         elif choice == "0":
             break
         else:
@@ -885,7 +898,9 @@ def _train_xgb_interactive(cfg: TradingConfig) -> None:
 
     symbols_default = ",".join(cfg.watch_symbols) if cfg.watch_symbols else "TSLA.US,AAPL.US"
     symbols_input = input(f"  训练标的 [{symbols_default}]: ").strip()
-    symbols = symbols_input if symbols_input else symbols_default
+    symbols = _normalize_symbols(symbols_input) if symbols_input else symbols_default
+    if symbols_input and symbols != symbols_input:
+        print(f"  自动补全为: {symbols}")
 
     klines_input = input("  日线数量 [500]: ").strip()
     klines = klines_input if klines_input else "500"
@@ -934,7 +949,9 @@ def _train_rl_interactive(cfg: TradingConfig) -> None:
 
     symbols_default = ",".join(cfg.watch_symbols) if cfg.watch_symbols else "TSLA.US,AAPL.US"
     symbols_input = input(f"  训练标的 [{symbols_default}]: ").strip()
-    symbols = symbols_input if symbols_input else symbols_default
+    symbols = _normalize_symbols(symbols_input) if symbols_input else symbols_default
+    if symbols_input and symbols != symbols_input:
+        print(f"  自动补全为: {symbols}")
 
     algo_input = input(f"  RL 算法 (PPO/DQN/A2C) [{cfg.ml.rl_algo}]: ").strip().upper()
     algo = algo_input if algo_input in ("PPO", "DQN", "A2C") else cfg.ml.rl_algo
@@ -972,6 +989,122 @@ def _train_rl_interactive(cfg: TradingConfig) -> None:
             print(f"\n  ❌ 训练失败 (exit code: {result.returncode})")
     except Exception as e:
         print(f"\n  ❌ 训练失败: {e}")
+
+
+def _backtest_interactive(cfg: TradingConfig, model_type: str) -> None:
+    """Interactive backtest evaluation for XGBoost or RL model."""
+    label = "XGBoost" if model_type == "xgboost" else f"RL ({cfg.ml.rl_algo})"
+
+    print(f"\n{'─' * 50}")
+    print(f"  回测评估 — {label}")
+    print(f"{'─' * 50}")
+
+    # Check model exists
+    model_info = _get_model_info(cfg)
+    if model_type == "xgboost":
+        model_path = MODEL_DIR / f"{cfg.ml.model_name}.json"
+    else:
+        model_path = MODEL_DIR / f"{cfg.ml.model_name}_{cfg.ml.rl_algo}.zip"
+
+    if not model_path.exists():
+        print(f"\n  ❌ 模型文件不存在: {model_path.name}")
+        print("     请先在菜单中训练模型")
+        return
+
+    # Interactive inputs
+    symbols_default = ",".join(cfg.watch_symbols[:3]) if cfg.watch_symbols else "TSLA.US"
+    symbol_input = input(f"  回测标的 [{symbols_default}]: ").strip()
+    symbol = _normalize_symbols(symbol_input).split(",")[0] if symbol_input else symbols_default.split(",")[0]
+    if symbol_input and symbol != symbol_input:
+        print(f"  自动补全为: {symbol}")
+
+    klines_input = input("  日线数量 [500]: ").strip()
+    klines = int(klines_input) if klines_input else 500
+
+    test_ratio_input = input("  测试集比例 [0.2] (即后 20% 数据用于回测): ").strip()
+    test_ratio = float(test_ratio_input) if test_ratio_input else 0.2
+    test_ratio = max(0.1, min(0.5, test_ratio))
+
+    print(f"\n  回测参数:")
+    print(f"    标的:     {symbol}")
+    print(f"    数据量:   {klines} 根日线")
+    print(f"    测试集:   后 {test_ratio:.0%}")
+    print(f"    模型:     {model_path.name}")
+
+    confirm = input("\n  确认开始回测? (y/n): ").strip().lower()
+    if confirm != "y":
+        print("  已取消")
+        return
+
+    # Fetch data
+    print(f"\n  ⏳ 正在获取 {symbol} 的日线数据 ...")
+    try:
+        from longport.openapi import Config, QuoteContext as QC, Period, AdjustType
+
+        lb_config = Config(
+            app_key=cfg.credentials.app_key,
+            app_secret=cfg.credentials.app_secret,
+            access_token=cfg.credentials.access_token,
+        )
+        qctx = QC(lb_config)
+        candles = qctx.candlesticks(symbol, Period.Day, klines, AdjustType.NoAdjust)
+        closes = [float(c.close) for c in candles]
+        highs = [float(c.high) for c in candles]
+        lows = [float(c.low) for c in candles]
+        volumes = [float(c.volume) for c in candles]
+        print(f"  ✅ 获取到 {len(closes)} 根日线")
+    except Exception as e:
+        print(f"  ❌ 获取数据失败: {e}")
+        return
+
+    if len(closes) < 100:
+        print(f"  ❌ 数据不足 ({len(closes)} 根)，需至少 100 根")
+        return
+
+    # Load model
+    print("  ⏳ 正在加载模型 ...")
+    try:
+        if model_type == "xgboost":
+            from ml.xgb_model import XGBModelManager
+            model = XGBModelManager()
+            if not model.load(cfg.ml.model_name):
+                print("  ❌ XGBoost 模型加载失败")
+                return
+        else:
+            from ml.rl_agent import RLAgentManager
+            model = RLAgentManager(algo=cfg.ml.rl_algo)
+            if not model.load(cfg.ml.model_name):
+                print(f"  ❌ RL 模型加载失败 ({cfg.ml.rl_algo})")
+                return
+    except Exception as e:
+        print(f"  ❌ 模型加载失败: {e}")
+        return
+
+    # Run backtest
+    print("  ⏳ 正在回测 ...\n")
+    try:
+        from ml.backtest import run_backtest, print_backtest_report
+
+        result = run_backtest(
+            closes, highs, lows, volumes,
+            model_type=model_type,
+            model=model,
+            symbol=symbol,
+            test_ratio=test_ratio,
+            boll_period=cfg.strategy.boll_period,
+            boll_std=cfg.strategy.boll_std_dev,
+            rsi_period=cfg.strategy.rsi_period,
+            ema_period=cfg.strategy.trend_ema_period,
+            xgb_buy_threshold=cfg.ml.xgb_buy_threshold,
+            xgb_sell_threshold=cfg.ml.xgb_sell_threshold,
+        )
+
+        print_backtest_report(result)
+
+    except Exception as e:
+        print(f"  ❌ 回测失败: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # ╭───────────────────────────────────────────────────────────╮
