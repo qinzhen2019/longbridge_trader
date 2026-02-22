@@ -5,3 +5,5 @@ logs/
 .DS_Store
 *.log
 models/
+.venv/
+test_tg.py

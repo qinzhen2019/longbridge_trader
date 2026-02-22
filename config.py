@@ -61,6 +61,14 @@ class MLParams:
     rl_algo: str  # "PPO" | "DQN" | "A2C"
     model_name: str
 
+
+@dataclass(frozen=True)
+class TelegramConfig:
+    enabled: bool
+    bot_token: str
+    chat_id: str
+    signal_cooldown_seconds: int  # 同一股票同方向信号冷却时间
+
 @dataclass(frozen=True)
 class TradingConfig:
     paper_trading: bool
@@ -72,6 +80,7 @@ class TradingConfig:
     risk: RiskParams
     watchlist: WatchlistParams
     ml: MLParams
+    telegram: TelegramConfig
 
 
 def _env(key: str, default: str | None = None) -> str:
@@ -126,6 +135,13 @@ def load_config() -> TradingConfig:
         model_name=_env("ML_MODEL_NAME", "xgb_model"),
     )
 
+    telegram = TelegramConfig(
+        enabled=_env("TELEGRAM_ENABLED", "false").lower() in ("true", "1", "yes"),
+        bot_token=_env("TELEGRAM_BOT_TOKEN", ""),
+        chat_id=_env("TELEGRAM_CHAT_ID", ""),
+        signal_cooldown_seconds=int(_env("SIGNAL_COOLDOWN_SECONDS", "300")),
+    )
+
     return TradingConfig(
         paper_trading=_env("PAPER_TRADING", "true").lower() in ("true", "1", "yes"),
         watch_symbols=symbols,
@@ -136,4 +152,5 @@ def load_config() -> TradingConfig:
         risk=risk,
         watchlist=watchlist,
         ml=ml,
+        telegram=telegram,
     )

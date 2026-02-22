@@ -1278,6 +1278,67 @@ def ml_predict_watchlist(quote_ctx: QuoteContext, cfg: TradingConfig) -> None:
 
 
 # ╭───────────────────────────────────────────────────────────╮
+# │  10. 实盘信号监控 (Telegram 通知)                         │
+# ╰───────────────────────────────────────────────────────────╯
+
+def _launch_live_monitor(cfg: TradingConfig) -> None:
+    """Confirm and launch the Live Signal Monitor (Trade Copilot)."""
+    model_info = _get_model_info(cfg)
+
+    print(f"\n{'=' * 60}")
+    print("  📡 实盘信号监控 (Trade Copilot)")
+    print(f"{'=' * 60}")
+    print(f"  模式:     通知模式 (不自动下单)")
+    print(f"  模型:     {_model_status_line(model_info)}")
+    print(f"  买入阈值: {cfg.ml.xgb_buy_threshold:.2f} (prob_up ≥ 此值)")
+    print(f"  卖出阈值: {cfg.ml.xgb_sell_threshold:.2f} (prob_up ≤ 此值)")
+    print(f"  冷却时间: {cfg.telegram.signal_cooldown_seconds}秒")
+    print(f"  Telegram: {'✅ 已启用' if cfg.telegram.enabled else '❌ 未启用'}")
+
+    if not model_info.get("exists", True):
+        print("\n  ⚠️  模型文件不存在！请先在 [8. ML 策略管理] 中训练模型。")
+        return
+
+    if not cfg.telegram.enabled:
+        print("\n  ⚠️  Telegram 未启用。请在 .env 中设置:")
+        print("     TELEGRAM_ENABLED=true")
+        print("     TELEGRAM_BOT_TOKEN=your_bot_token")
+        print("     TELEGRAM_CHAT_ID=your_chat_id")
+        print("\n  即使未启用 Telegram，监控器仍会运行并在控制台输出信号。")
+
+    confirm = input("\n  确认启动实盘信号监控? (y/n): ").strip().lower()
+    if confirm != "y":
+        print("  已取消")
+        return
+
+    from ml.live_monitor import LiveSignalMonitor
+    monitor = LiveSignalMonitor(cfg)
+
+    print("  =======================================================")
+    print("  💡 提示: 实盘信号监控正在前台运行，想退回菜单请按 Ctrl + C")
+    print("  =======================================================\n")
+
+    caffeinate_proc = None
+    if platform.system() == "Darwin":
+        print("  ⚡ 已启动 macOS 防休眠 (caffeinate)")
+        caffeinate_proc = subprocess.Popen(
+            ["caffeinate", "-i", "-s"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
+    try:
+        monitor.run_sync()
+    except KeyboardInterrupt:
+        print("\n  捕捉到退出信号，已停止监控，返回主面板。")
+    finally:
+        if caffeinate_proc is not None:
+            caffeinate_proc.terminate()
+            caffeinate_proc.wait()
+            print("  🛑 已关闭防休眠进程")
+
+
+# ╭───────────────────────────────────────────────────────────╮
 # │  Main Menu & Entry point                                  │
 # ╰───────────────────────────────────────────────────────────╯
 
@@ -1300,9 +1361,10 @@ def main_menu(cfg: TradingConfig) -> str:
     print(f"{'║'}  7. 启动自动交易引擎 (按 Ctrl+C 可停止并返回)     {'║'}")
     print(f"{'║'}  8. ML 策略管理                                   {'║'}")
     print(f"{'║'}  9. ML 预测关注清单 (未来5日涨跌概率)             {'║'}")
+    print(f"{'║'} 10. 实盘信号监控 (Telegram 通知)                  {'║'}")
     print(f"{'║'}  0. 退出                                          {'║'}")
     print(f"{'╚' + '═' * 52 + '╝'}")
-    return input("\n  请选择 [0-9]: ").strip()
+    return input("\n  请选择 [0-10]: ").strip()
 
 
 def main() -> None:
@@ -1354,12 +1416,15 @@ def main() -> None:
         elif choice == "9":
             ml_predict_watchlist(quote_ctx, cfg)
 
+        elif choice == "10":
+            _launch_live_monitor(cfg)
+
         elif choice == "0":
             print("\n  再见!")
             sys.exit(0)
 
         else:
-            print("  无效选择，请输入 0-9")
+            print("  无效选择，请输入 0-10")
 
 
 if __name__ == "__main__":
